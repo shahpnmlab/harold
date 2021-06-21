@@ -223,7 +223,6 @@ subparticle_positions = particle_positions + oriented_shifts  # (m, n, 3, 1)
 # (n, 3, 3) @ (m, 1, 3, 3) -> (m, n, 3, 3)
 
 align_subparticle_on_z = axisAngle2Matrix(AXISANGLE)
-align_subparticle_on_z = compute_matrix(SUBPARTICLE_VECTOR)
 
 orientations = particle_orientations @ subparticle_orientations @ align_subparticle_on_z
 
