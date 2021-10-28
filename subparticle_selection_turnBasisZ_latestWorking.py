@@ -182,7 +182,7 @@ ICOS_CONVENTION = "I2"
 ICOSAHEDRAL_RADIUS_PX = 32  # Pixels
 SUBPARTICLE_VECTOR = get_subparticle_vector(ICOS_CONVENTION, "C5")
 #SUBPARTICLE_VECTOR = custom_vector("100,86,51", 178)
-print(SUBPARTICLE_VECTOR)
+#print(SUBPARTICLE_VECTOR)
 
 # get particle info
 star = starfile.read(STAR_FILE)
