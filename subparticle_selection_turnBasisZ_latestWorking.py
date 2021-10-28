@@ -3,6 +3,7 @@ import os
 import numpy as np
 import pandas as pd
 import starfile
+
 from eulerangles import euler2matrix, invert_rotation_matrices, matrix2euler
 from pathlib import Path
 
@@ -58,6 +59,8 @@ def get_subparticle_vector(sym, subsym):
     the sub symmetry
     e.g. t = get_subparticle_vector("I2", "C5")
     """
+    sym = sym.upper()
+    subsym  = subsym.upper()
 
     i1five = np.array(
         [0, np.sin(np.radians(31.7175)), np.cos(np.radians(31.7175))]
@@ -83,29 +86,65 @@ def get_subparticle_vector(sym, subsym):
         [np.sin(np.radians(31.7175)), 0, np.cos(np.radians(31.7175))]
     ).reshape(3, 1)
 
-    if sym == "I1" or sym == "i1":
-        if subsym == "C5" or subsym == "c5":
+    if sym == "I1":
+        if subsym == "C5":
             vector = i1five
-        elif subsym == "C3" or subsym == "c3":
+        elif subsym == "C3":
             vector = i1three
-        elif subsym == "C2" or subsym == "c2":
+        elif subsym == "C2":
             vector = i1two
-    elif sym == "I2" or sym == "i2":
-        if subsym == "C5" or subsym == "c5":
+    elif sym == "I2":
+        if subsym == "C5":
             vector = i2five
-        elif subsym == "C3" or subsym == "c3":
+        elif subsym == "C3":
             vector = i2three
-        elif subsym == "C2" or subsym == "c2":
+        elif subsym == "C2":
             vector = i2two
-    elif sym == "I3" or sym == "i3":
-        if subsym == "C5" or subsym == "c5":
+    elif sym == "I3":
+        if subsym == "C5":
             vector = i3five
-        elif subsym == "C3" or subsym == "c3":
+        elif subsym == "C3":
             vector = i3three
-        elif subsym == "C2" or subsym == "c2":
+        elif subsym == "C2":
             vector = i3two
     return vector
 
+def custom_vector(xyz, box_size):
+    '''
+    A custom vector can be defined by opening the consensus average in IMOD 
+    and placing querying 3dmod to report the coords under the cursor. Alternatively,
+    a model file can be generated for the point the user is interested in, converted
+    to a text file and read in.
+    The coords from IMOD are relative to the 0,0,0 from the bottom left of the volume.
+    To recenter on the consensus average, read in the coords and subtract half the box size in pixels
+    and normalise the vector.
+    '''
+    half_box = box_size / 2
+    point = np.array(xyz.split(','), dtype='float')
+    point = point - half_box
+    return point / np.linalg.norm(point, ord=2)
+
+def compute_matrix(vector):
+    '''
+    Lifted from localised reconstuction...
+    '''
+    if abs(vector[0] < 0.00001) and abs(vector[1] < 0.00001):
+        rot = 0.00
+        tilt = 0.00
+    else:
+        rot = np.arctan2(vector[1], vector[0])
+        tilt = np.arccos(vector[2])
+
+    psi = 0 #What happens if this changes? Test it out.
+
+    rot1 = np.degrees(rot)
+    tilt1 = np.degrees(tilt)
+    psi1 = np.degrees(psi)
+    eulers = np.array([rot1, tilt1, psi1], dtype=float)
+    vector_matrix = euler2matrix(
+        eulers, axes="zyz", intrinsic=True, right_handed_rotation=True
+    )
+    return vector_matrix
 
 def axisAngle2Matrix(axis_angle=np.array([0, 0, 1, 0])):
     """
@@ -132,26 +171,6 @@ def axisAngle2Matrix(axis_angle=np.array([0, 0, 1, 0])):
     return turn
 
 
-def compute_matrix(vector):
-    if abs(vector[0] < 0.00001) and abs(vector[1] < 0.00001):
-        rot = 0.00
-        tilt = 0.00
-    else:
-        rot = np.arctan2(vector[1], vector[0])
-        tilt = np.arccos(vector[2])
-
-    psi = 0
-
-    rot1 = np.degrees(rot)
-    tilt1 = np.degrees(tilt)
-    psi1 = np.degrees(psi)
-    eulers = np.array([rot1, tilt1, psi1], dtype=float)
-    vector_matrix = euler2matrix(
-        eulers, axes="zyz", intrinsic=True, right_handed_rotation=True
-    )
-    return vector_matrix
-
-
 # get user input
 #STARFILE311 = "run_data.star"
 #star_downgrade(STARFILE311)
@@ -162,7 +181,8 @@ OUTPUT_STAR_FILE = "temp_subparticles_2.star"
 ICOS_CONVENTION = "I2"
 ICOSAHEDRAL_RADIUS_PX = 32  # Pixels
 SUBPARTICLE_VECTOR = get_subparticle_vector(ICOS_CONVENTION, "C5")
-AXISANGLE = np.array([0, 1, 0, 31.7175])
+#SUBPARTICLE_VECTOR = custom_vector("100,86,51", 178)
+print(SUBPARTICLE_VECTOR)
 
 # get particle info
 star = starfile.read(STAR_FILE)
@@ -185,7 +205,7 @@ particle_rotation_matrices = invert_rotation_matrices(
 
 # get icosahedral matrices (60)
 icosahedral_matrices = get_rotmat(ICOS_CONVENTION)
-icosahedral_matrices = invert_rotation_matrices(icosahedral_matrices)
+#icosahedral_matrices = invert_rotation_matrices(icosahedral_matrices)
 
 # find set of coincedent rotated z-vectors (subparticles)
 rotated_z_vectors = (icosahedral_matrices @ SUBPARTICLE_VECTOR).squeeze()
@@ -224,7 +244,7 @@ subparticle_positions = particle_positions + oriented_shifts  # (m, n, 3, 1)
 # calculate the new orientations by composing rotations
 # (n, 3, 3) @ (m, 1, 3, 3) -> (m, n, 3, 3)
 
-align_subparticle_on_z = axisAngle2Matrix(AXISANGLE)
+align_subparticle_on_z = compute_matrix(SUBPARTICLE_VECTOR)
 
 orientations = particle_orientations @ subparticle_orientations @ align_subparticle_on_z
 
