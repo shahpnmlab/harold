@@ -155,8 +155,10 @@ def compute_matrix(vector):
 # get user input
 #STARFILE311 = "run_data.star"
 #star_downgrade(STARFILE311)
-STAR_FILE = Path("run_data.star")
-OUTPUT_STAR_FILE = f"{STAR_FILE.parent / STAR_FILE.stem}_subparticles.star"
+STAR_FILE = Path("Refine3D/job221/run_few2.star")
+OUTPUT_STAR_FILE = "temp_subparticles_2.star"
+#STAR_FILE = Path("run_data.star")
+#OUTPUT_STAR_FILE = f"{STAR_FILE.parent / STAR_FILE.stem}_subparticles.star"
 ICOS_CONVENTION = "I2"
 ICOSAHEDRAL_RADIUS_PX = 32  # Pixels
 SUBPARTICLE_VECTOR = get_subparticle_vector(ICOS_CONVENTION, "C5")
@@ -168,9 +170,9 @@ euler_headings = [f"rlnAngle{axis}" for axis in ("Rot", "Tilt", "Psi")]
 coordinate_headings = [f"rlnCoordinate{axis}" for axis in "XYZ"]
 tomogram_heading = "rlnMicrographName"
 
-eulers_particles = star[euler_headings].to_numpy()
-coords_particles = star[coordinate_headings].to_numpy()
-tomograms_particles = star[tomogram_heading].to_numpy()
+eulers_particles = star['particles'][euler_headings].to_numpy()
+coords_particles = star['particles'][coordinate_headings].to_numpy()
+tomograms_particles = star['particles'][tomogram_heading].to_numpy()
 
 # get particle rotation matrices
 # these matrices rotate basis vectors in the reference frame of the
@@ -251,13 +253,54 @@ output_tomograms[:, :] = tomograms_particles
 output_tomograms = output_tomograms.reshape(-1, 1)
 
 # write out a star file with subparticle info
-df = pd.DataFrame(data=output_positions, columns=coordinate_headings)
-df[tomogram_heading] = output_tomograms
-df[euler_headings] = output_eulers
-df = df.sort_values(by=['rlnMicrographName'])
+#df = pd.DataFrame(data=output_positions, columns=coordinate_headings)
+#df[tomogram_heading] = output_tomograms
+#df[euler_headings] = output_eulers
+#df = df.sort_values(by=['rlnMicrographName'])
 
-starfile.write(df, OUTPUT_STAR_FILE, overwrite=True)
-print(f"Wrote out {output_tomograms.shape[0]} subparticles in {OUTPUT_STAR_FILE}")
+
+# write out a star file with subparticle info
+newStar=star.copy()
+
+# this is the dataframe corresponding to particle information as opposed to optics groups etc.
+parts=pd.DataFrame(star['particles'])
+
+#create an empty datafram to fill with symmetry expanded particles
+newParts=pd.DataFrame(star['particles']).iloc[0:1]
+
+N_sym=np.shape(subparticle_orientations)[0]
+N_parts=np.shape(particle_orientations)[0]
+
+for i in np.arange(N_parts):
+
+    print("particle " +str(i) +" of " +str(N_parts) + " finished. ("+str(100*float(i)/float(N_parts))+"%)" , end = "\r")
+    #create a dataframe to hold the current particles expanded subparticles 
+    expandedParts=pd.DataFrame([parts.iloc[i]]*N_sym)
+	
+    #get the orientation of this particle
+    thisParticleOri = particle_rotation_matrices[i]
+
+    expandedPartOris = thisParticleOri @ subparticle_orientations 
+    expandedPartEuls = matrix2euler(expandedPartOris,
+    axes="zyz",
+    intrinsic=True,
+    right_handed_rotation=True)
+   
+    expandedParts['rlnAngleRot'] = expandedPartEuls[:,0]
+    expandedParts['rlnAngleTilt'] = expandedPartEuls[:,1]
+    expandedParts['rlnAnglePsi'] = expandedPartEuls[:,2]
+
+    newParts=newParts.append(expandedParts)
+
+#newParts.reset_index(inplace=True)
+newStar['particles']=newParts.iloc[1:]
+
+
+#starfile.write(df, OUTPUT_STAR_FILE, overwrite=True)
+#print(f"Wrote out {output_tomograms.shape[0]} subparticles in {OUTPUT_STAR_FILE}")
+starfile.write(newStar, OUTPUT_STAR_FILE, overwrite=True)
+print(f"Wrote out {N_parts*N_sym} subparticles in {OUTPUT_STAR_FILE}")
+
 
 # Visualise for debug
 # import napari
