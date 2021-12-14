@@ -85,6 +85,8 @@ def get_subparticle_vector(sym, subsym):
     i3two = np.array(
         [np.sin(np.radians(31.7175)), 0, np.cos(np.radians(31.7175))]
     ).reshape(3, 1)
+    tthree = np.array([0, 0, 1]).reshape(3, 1)
+
 
     if sym == "I1":
         if subsym == "C5":
@@ -107,6 +109,9 @@ def get_subparticle_vector(sym, subsym):
             vector = i3three
         elif subsym == "C2":
             vector = i3two
+    elif sym == "T":
+        if subsym == "C3":
+            vector = tthree
     return vector
 
 def custom_vector(xyz, box_size):
@@ -170,6 +175,65 @@ def axisAngle2Matrix(axis_angle=np.array([0, 0, 1, 0])):
     )
     return turn
 
+def eul2mat(eul):
+    mat=np.zeros((3,3))
+    alpha=np.deg2rad(eul[0])
+    beta=np.deg2rad(eul[1])
+    gamma=np.deg2rad(eul[2])
+
+    ca = np.cos(alpha);
+    cb = np.cos(beta);
+    cg = np.cos(gamma);
+    sa = np.sin(alpha);
+    sb = np.sin(beta);
+    sg = np.sin(gamma);
+    cc = cb * ca;
+    cs = cb * sa;
+    sc = sb * ca;
+    ss = sb * sa;
+
+    mat[0, 0] =  cg * cc - sg * sa;
+    mat[0, 1] =  cg * cs + sg * ca;
+    mat[0, 2] = -cg * sb;
+    mat[1, 0] = -sg * cc - cg * sa;
+    mat[1, 1] = -sg * cs + cg * ca;
+    mat[1, 2] = sg * sb;
+    mat[2, 0] =  sc;
+    mat[2, 1] =  ss;
+    mat[2, 2] = cb;
+
+    return(mat)
+
+def mat2eul(mat):
+    N = np.shape(mat)[0]
+    out=np.zeros((N,3))
+    for i in np.arange(N): 
+        A=mat[i][0]
+        sign_sb=0
+        abs_sb = np.sqrt(A[0, 2] * A[0, 2] + A[1, 2] * A[1, 2]);
+        if (abs_sb > 1.19209e-07):
+            gamma = np.arctan2(A[1, 2], -A[0, 2]);
+            alpha = np.arctan2(A[2, 1],  A[2, 0]);
+            if (np.abs(np.sin(gamma)) < 1.19209e-07):
+                sign_sb = np.sign(-A[0, 2] / np.cos(gamma))
+            elif np.sin(gamma) > 0:
+                sign_sb = np.sign(A[1,2])
+            else:
+                sign_sb = -np.sign(A[1,2])
+            beta = np.arctan2(sign_sb * abs_sb, A[2,2])
+        elif(np.sign(A[2,2])>0):
+            alpha=0
+            beta=0
+            gamma=np.arctan2(-A[1,0],A[0,0])
+        else:
+            alpha=0
+            beta=np.pi
+            gamma=np.arctan2(A[1,0],-A[0,0])
+
+        out[i,0]=np.rad2deg(alpha)
+        out[i,1]=np.rad2deg(beta)
+        out[i,2]=np.rad2deg(gamma)
+    return(out)
 
 # get user input
 #STARFILE311 = "run_data.star"
@@ -178,9 +242,9 @@ STAR_FILE = Path("Refine3D/job221/run_few2.star")
 OUTPUT_STAR_FILE = "temp_subparticles_2.star"
 #STAR_FILE = Path("run_data.star")
 #OUTPUT_STAR_FILE = f"{STAR_FILE.parent / STAR_FILE.stem}_subparticles.star"
-ICOS_CONVENTION = "I2"
+ICOS_CONVENTION = "T"
 ICOSAHEDRAL_RADIUS_PX = 32  # Pixels
-SUBPARTICLE_VECTOR = get_subparticle_vector(ICOS_CONVENTION, "C5")
+SUBPARTICLE_VECTOR = get_subparticle_vector(ICOS_CONVENTION, "C3")
 #SUBPARTICLE_VECTOR = custom_vector("100,86,51", 178)
 #print(SUBPARTICLE_VECTOR)
 
@@ -306,9 +370,10 @@ for i in np.arange(N_parts):
     intrinsic=True,
     right_handed_rotation=True)
    
-    expandedParts['rlnAngleRot'] = expandedPartEuls[:,0]
-    expandedParts['rlnAngleTilt'] = expandedPartEuls[:,1]
-    expandedParts['rlnAnglePsi'] = expandedPartEuls[:,2]
+    euls=mat2eul(expandedPartOris)
+    expandedParts['rlnAngleRot'] = euls[:,0]
+    expandedParts['rlnAngleTilt'] = euls[:,1]
+    expandedParts['rlnAnglePsi'] = euls[:,2]
 
     newParts=newParts.append(expandedParts)
 
