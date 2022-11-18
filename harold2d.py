@@ -85,8 +85,6 @@ def get_subparticle_vector(sym, subsym):
     i3two = np.array(
         [np.sin(np.radians(31.7175)), 0, np.cos(np.radians(31.7175))]
     ).reshape(3, 1)
-    tthree = np.array([0, 0, 1]).reshape(3, 1)
-
 
     if sym == "I1":
         if subsym == "C5":
@@ -109,14 +107,11 @@ def get_subparticle_vector(sym, subsym):
             vector = i3three
         elif subsym == "C2":
             vector = i3two
-    elif sym == "T":
-        if subsym == "C3":
-            vector = tthree
     return vector
 
 def custom_vector(xyz, box_size):
     '''
-    A custom vector can be defined by opening the consensus average in IMOD 
+    A custom vector can be defined by opening the consensus average in IMOD
     and placing querying 3dmod to report the coords under the cursor. Alternatively,
     a model file can be generated for the point the user is interested in, converted
     to a text file and read in.
@@ -175,83 +170,17 @@ def axisAngle2Matrix(axis_angle=np.array([0, 0, 1, 0])):
     )
     return turn
 
-def eul2mat(eul):
-    mat=np.zeros((3,3))
-    alpha=np.deg2rad(eul[0])
-    beta=np.deg2rad(eul[1])
-    gamma=np.deg2rad(eul[2])
-
-    ca = np.cos(alpha);
-    cb = np.cos(beta);
-    cg = np.cos(gamma);
-    sa = np.sin(alpha);
-    sb = np.sin(beta);
-    sg = np.sin(gamma);
-    cc = cb * ca;
-    cs = cb * sa;
-    sc = sb * ca;
-    ss = sb * sa;
-
-    mat[0, 0] =  cg * cc - sg * sa;
-    mat[0, 1] =  cg * cs + sg * ca;
-    mat[0, 2] = -cg * sb;
-    mat[1, 0] = -sg * cc - cg * sa;
-    mat[1, 1] = -sg * cs + cg * ca;
-    mat[1, 2] = sg * sb;
-    mat[2, 0] =  sc;
-    mat[2, 1] =  ss;
-    mat[2, 2] = cb;
-
-    return(mat)
-
-def mat2eul(mat):
-    N = np.shape(mat)[0]
-    out=np.zeros((N,3))
-    for i in np.arange(N): 
-        A=mat[i][0]
-        sign_sb=0
-        abs_sb = np.sqrt(A[0, 2] * A[0, 2] + A[1, 2] * A[1, 2]);
-        if (abs_sb > 1.19209e-07):
-            gamma = np.arctan2(A[1, 2], -A[0, 2]);
-            alpha = np.arctan2(A[2, 1],  A[2, 0]);
-            if (np.abs(np.sin(gamma)) < 1.19209e-07):
-                sign_sb = np.sign(-A[0, 2] / np.cos(gamma))
-            elif np.sin(gamma) > 0:
-                sign_sb = np.sign(A[1,2])
-            else:
-                sign_sb = -np.sign(A[1,2])
-            beta = np.arctan2(sign_sb * abs_sb, A[2,2])
-        elif(np.sign(A[2,2])>0):
-            alpha=0
-            beta=0
-            gamma=np.arctan2(-A[1,0],A[0,0])
-        else:
-            alpha=0
-            beta=np.pi
-            gamma=np.arctan2(A[1,0],-A[0,0])
-
-        out[i,0]=np.rad2deg(alpha)
-        out[i,1]=np.rad2deg(beta)
-        out[i,2]=np.rad2deg(gamma)
-    return(out)
 
 # get user input
-#STARFILE311 = "run_data.star"
-#star_downgrade(STARFILE311)
-STAR_FILE = Path("Refine3D/job221/run_few2.star")
-OUTPUT_STAR_FILE = "temp_subparticles_2.star"
-#STAR_FILE = Path("run_data.star")
-#OUTPUT_STAR_FILE = f"{STAR_FILE.parent / STAR_FILE.stem}_subparticles.star"
-ICOS_CONVENTION = "T"
-ICOSAHEDRAL_RADIUS_PX = 32  # Pixels
-SUBPARTICLE_VECTOR = get_subparticle_vector(ICOS_CONVENTION, "C3")
-#SUBPARTICLE_VECTOR = custom_vector("100,86,51", 178)
-#print(SUBPARTICLE_VECTOR)
+STAR_FILE = Path("Refine3D/I3sym_virion/run_ct21_data.star")
+OUTPUT_STAR_FILE = "Refine3D/I3sym_virion/run_ct21_data_harold.star"
+ICOS_CONVENTION = "I3"
+SUBPARTICLE_VECTOR = get_subparticle_vector(ICOS_CONVENTION, "C5")
 
 # get particle info
 star = starfile.read(STAR_FILE)
 euler_headings = [f"rlnAngle{axis}" for axis in ("Rot", "Tilt", "Psi")]
-coordinate_headings = [f"rlnCoordinate{axis}" for axis in "XYZ"]
+coordinate_headings = [f"rlnCoordinate{axis}" for axis in "XY"]
 tomogram_heading = "rlnMicrographName"
 
 eulers_particles = star['particles'][euler_headings].to_numpy()
@@ -269,7 +198,6 @@ particle_rotation_matrices = invert_rotation_matrices(
 
 # get icosahedral matrices (60)
 icosahedral_matrices = get_rotmat(ICOS_CONVENTION)
-#icosahedral_matrices = invert_rotation_matrices(icosahedral_matrices)
 
 # find set of coincedent rotated z-vectors (subparticles)
 rotated_z_vectors = (icosahedral_matrices @ SUBPARTICLE_VECTOR).squeeze()
@@ -290,57 +218,6 @@ subparticle_orientations = subparticle_rotation_matrices.reshape(
     -1, 1, 3, 3
 )  # (m, 1, 3, 3)
 
-subparticle_z_vectors = subparticle_rotation_matrices @ SUBPARTICLE_VECTOR  # (12, 3, 1)
-
-subparticle_shifts = ICOSAHEDRAL_RADIUS_PX * subparticle_z_vectors  # (12, 3)
-subparticle_shifts = subparticle_shifts.reshape(-1, 1, 3, 1)  # (m, 1, 3, 1)
-
-### apply transformations onto particles
-particle_positions = coords_particles.reshape((-1, 3, 1))  # (n, 3, 1)
-particle_orientations = particle_rotation_matrices  # (n, 3, 3)
-
-# orient the shift vectors according to particle orientation
-oriented_shifts = particle_orientations @ subparticle_shifts  # (m, n, 3, 1)
-
-# apply the transformed shifts onto particle positions
-subparticle_positions = particle_positions + oriented_shifts  # (m, n, 3, 1)
-
-# calculate the new orientations by composing rotations
-# (n, 3, 3) @ (m, 1, 3, 3) -> (m, n, 3, 3)
-
-align_subparticle_on_z = compute_matrix(SUBPARTICLE_VECTOR)
-
-orientations = particle_orientations @ subparticle_orientations @ align_subparticle_on_z
-
-
-output_positions = subparticle_positions.reshape((-1, 3))
-output_orientations = orientations.reshape((-1, 3, 3))
-
-output_oriented_z = output_orientations @ SUBPARTICLE_VECTOR
-
-# get eulers from rotation matrices for subparticles
-
-output_eulers = matrix2euler(
-    invert_rotation_matrices(output_orientations),
-    axes="zyz",
-    intrinsic=True,
-    right_handed_rotation=True,
-)
-
-# output_eulers[:,[0,2]] = -output_eulers[:,[0,2]] # Negate the rot and psi angles
-
-# generate (m, n) set of tomogram names
-output_tomograms = np.empty(subparticle_positions.shape[:2], dtype=object)
-output_tomograms[:, :] = tomograms_particles
-
-# reshape output tomograms to (m * n)
-output_tomograms = output_tomograms.reshape(-1, 1)
-
-# write out a star file with subparticle info
-#df = pd.DataFrame(data=output_positions, columns=coordinate_headings)
-#df[tomogram_heading] = output_tomograms
-#df[euler_headings] = output_eulers
-#df = df.sort_values(by=['rlnMicrographName'])
 
 
 # write out a star file with subparticle info
@@ -353,27 +230,25 @@ parts=pd.DataFrame(star['particles'])
 newParts=pd.DataFrame(star['particles']).iloc[0:1]
 
 N_sym=np.shape(subparticle_orientations)[0]
-N_parts=np.shape(particle_orientations)[0]
+N_parts=np.shape(particle_rotation_matrices)[0]
 
 for i in np.arange(N_parts):
 
     print("particle " +str(i) +" of " +str(N_parts) + " finished. ("+str(100*float(i)/float(N_parts))+"%)" , end = "\r")
-    #create a dataframe to hold the current particles expanded subparticles 
+    #create a dataframe to hold the current particles expanded subparticles
     expandedParts=pd.DataFrame([parts.iloc[i]]*N_sym)
-	
+
     #get the orientation of this particle
     thisParticleOri = particle_rotation_matrices[i]
-
-    expandedPartOris = thisParticleOri @ subparticle_orientations 
-    expandedPartEuls = matrix2euler(expandedPartOris,
-    axes="zyz",
-    intrinsic=True,
-    right_handed_rotation=True)
-   
-    euls=mat2eul(expandedPartOris)
-    expandedParts['rlnAngleRot'] = euls[:,0]
-    expandedParts['rlnAngleTilt'] = euls[:,1]
-    expandedParts['rlnAnglePsi'] = euls[:,2]
+    align_subparticle_on_z = compute_matrix(SUBPARTICLE_VECTOR)
+    expandedPartOris = thisParticleOri @ subparticle_orientations @ align_subparticle_on_z
+    expandedPartEuls = matrix2euler(invert_rotation_matrices(expandedPartOris.reshape((-1, 3, 3))),
+				     axes="zyz",
+    				     intrinsic=True,
+    				     right_handed_rotation=True)
+    expandedParts['rlnAngleRot'] = expandedPartEuls[:,0]
+    expandedParts['rlnAngleTilt'] = expandedPartEuls[:,1]
+    expandedParts['rlnAnglePsi'] = expandedPartEuls[:,2]
 
     newParts=newParts.append(expandedParts)
 
@@ -381,18 +256,5 @@ for i in np.arange(N_parts):
 newStar['particles']=newParts.iloc[1:]
 
 
-#starfile.write(df, OUTPUT_STAR_FILE, overwrite=True)
-#print(f"Wrote out {output_tomograms.shape[0]} subparticles in {OUTPUT_STAR_FILE}")
 starfile.write(newStar, OUTPUT_STAR_FILE, overwrite=True)
 print(f"Wrote out {N_parts*N_sym} subparticles in {OUTPUT_STAR_FILE}")
-
-
-# Visualise for debug
-# import napari
-# napari_vectors = np.zeros((output_positions.shape[0], 2, 3))
-# napari_vectors[:, 0, :] = output_positions
-# napari_vectors[:, 1, :] = output_oriented_z.squeeze()
-
-# v = napari.Viewer()
-# v.add_points(output_positions)
-# v.add_vectors(napari_vectors)
