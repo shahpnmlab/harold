@@ -137,9 +137,9 @@ def compute_matrix(vector):
 
     psi = 0 #What happens if this changes? Test it out.
 
-    rot1 = np.degrees(rot)
-    tilt1 = np.degrees(tilt)
-    psi1 = np.degrees(psi)
+    rot1 = float(np.degrees(rot))
+    tilt1 = float(np.degrees(tilt))
+    psi1 = float(psi)
     eulers = np.array([rot1, tilt1, psi1], dtype=float)
     vector_matrix = euler2matrix(
         eulers, axes="zyz", intrinsic=True, right_handed_rotation=True
