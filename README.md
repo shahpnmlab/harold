@@ -17,12 +17,12 @@ It is recommended to use its own conda environment. You also need to have the `r
 
 ### SPA (2D particles)
 
-To use Harold, the basic syntax is as follows:
+To use Harold, open the script and edit the following parameters
+```
+STAR_FILE = Path("Refine3D/I3sym_virion/run_ct21_data.star")
+OUTPUT_STAR_FILE = "Refine3D/I3sym_virion/run_ct21_data_harold.star"
+ICOS_CONVENTION = "I3"
+SUBPARTICLE_VECTOR = get_subparticle_vector(ICOS_CONVENTION, "C5")
+```
 
-`python harold2d.py <particles.star> <global symmetry> <subsymmetry>`
-
-For example, if you want to get all the pentons of particles refined in the icosahedral I2 convention, you can issue the following command:
-
-`python harold2d.py run_data.star I2 C5`
-
-Note that while Harold is agnostic to the underlying symmetries (as it explicitly depends on Relion functions), there are useful shortcuts only for dealing with I, O, and T symmetries. To obtain subparticles with redundancy filtration for D- and C-symmetries, custom vectors need to be provided, and this is not currently implemented for 2D data.
+Note that while Harold is agnostic to the underlying symmetries (as it explicitly depends on Relion functions), there are useful shortcuts only for dealing with I, O, and T symmetries. To obtain subparticles with redundancy filtration for D- and C-symmetries, custom vectors need to be provided.
